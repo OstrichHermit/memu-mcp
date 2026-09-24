@@ -50,7 +50,6 @@ pip install -r requirements.txt
 ```env
 # LLM 与 Embedding 的 API Key（按 MemU 实际使用的服务配置）
 DASHSCOPE_API_KEY=your_dashscope_api_key_here
-VOYAGE_API_KEY=your_voyage_api_key_here
 
 # 存储配置
 DATABASE_TYPE=postgres
@@ -59,7 +58,6 @@ POSTGRES_DSN=postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/memu
 
 **获取 API Key**：
 - 阿里云百炼（通义千问）：https://help.aliyun.com/zh/model-studio/developer-reference/get-api-key
-- Voyage AI（Embedding）：https://docs.voyageai.com/
 
 ### 4. 接入 Claude Code
 
@@ -121,7 +119,7 @@ MemU (memu-py) + PostgreSQL + pgvector
 - **协议层**: 手写 MCP 协议（JSON-RPC 2.0，仅标准库）
 - **记忆系统**: MemU (memu-py)
 - **向量存储**: PostgreSQL + pgvector
-- **Embedding**: Voyage AI voyage-4-lite（可替换）
+- **Embedding**: 通义千问 text-embedding-v4（可替换）
 - **LLM**: 通义千问 qwen-plus（可替换）
 
 ## 故障排查

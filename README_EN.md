@@ -42,9 +42,6 @@ Create a `.env` file in the MemU working directory (loaded automatically at star
 # Tongyi Qianwen LLM
 DASHSCOPE_API_KEY=your_dashscope_api_key
 
-# Voyage Embedding
-VOYAGE_API_KEY=your_voyage_api_key
-
 # PostgreSQL
 DATABASE_TYPE=postgres
 POSTGRES_DSN=postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/memu
@@ -162,7 +159,7 @@ python memu_utils.py health
 - **Protocol layer**: Hand-written MCP protocol (JSON-RPC 2.0, stdlib only)
 - **Memory engine**: MemU (memu-py)
 - **Vector store**: PostgreSQL + pgvector
-- **Embedding**: Voyage AI voyage-4-lite
+- **Embedding**: Tongyi Qianwen text-embedding-v4
 - **LLM**: Tongyi Qianwen qwen-plus
 
 ## Notes
@@ -170,7 +167,7 @@ python memu_utils.py health
 1. `memu_utils.py` is kept as a direct-call fallback
 2. Make sure `.env` is configured correctly
 3. PostgreSQL must be running
-4. Voyage AI and DashScope API keys must be valid
+4. The DashScope (Tongyi Qianwen) API key must be valid
 
 ## References
 

@@ -43,9 +43,6 @@ uv pip install -r requirements.txt
 # 通义千问 LLM 配置
 DASHSCOPE_API_KEY=your_dashscope_api_key
 
-# Voyage Embedding 配置
-VOYAGE_API_KEY=your_voyage_api_key
-
 # PostgreSQL 配置
 DATABASE_TYPE=postgres
 POSTGRES_DSN=postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/memu
@@ -207,7 +204,7 @@ python server.py --transport http --host 127.0.0.1 --port 3335
 - **协议层**: 手写 MCP 协议（JSON-RPC 2.0，仅标准库）
 - **记忆系统**: MemU (memu-py)
 - **向量存储**: PostgreSQL + pgvector
-- **Embedding**: Voyage AI voyage-4-lite
+- **Embedding**: 通义千问 text-embedding-v4
 - **LLM**: 通义千问 qwen-plus
 
 ## 注意事项
@@ -215,7 +212,7 @@ python server.py --transport http --host 127.0.0.1 --port 3335
 1. **向后兼容性**: 保留 `memu_utils.py` 作为直接调用的备选方案
 2. **环境变量**: 确保 `.env` 文件配置正确
 3. **PostgreSQL**: 确保 PostgreSQL 服务正在运行
-4. **API Keys**: 确保 Voyage AI 和通义千问的 API Key 有效
+4. **API Keys**: 确保通义千问（DashScope）的 API Key 有效
 
 ## 参考资料
 
