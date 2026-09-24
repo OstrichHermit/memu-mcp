@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "memu-mcp"
+version = "1.0.0"
+description = "MemU memory system MCP server for Claude Code - persistent long-term memory over stdio or HTTP"
+authors = [
+    {name = "OstrichHermit"}
+]
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+dependencies = [
+    "memu-py",
+    "python-dotenv>=1.0.0",
+    "openai>=1.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+# 平铺布局：协议层 + 业务辅助层两个模块
+only-include = ["server.py", "memu_utils.py", "__init__.py"]
+sources = ["."]
