@@ -322,6 +322,8 @@ async def aget_context_memories(
         current_tokens = 0
 
         for memory in candidates:
+            if len(selected) >= limit:
+                break
             content = memory.get("content", "")
             content_tokens = len(content) // 3
 
