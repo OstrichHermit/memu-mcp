@@ -46,8 +46,8 @@ REM 配置从 .env 读取（见 docs/INSTALL.md）：
 REM   项目父目录的 .env 会被自动加载，也可用 MEMU_ENV_FILE 指定位置
 set "PYTHONUNBUFFERED=1"
 
-REM 启动服务（使用 start 命令在新窗口中运行）
-start "MemU MCP Server" python server.py --transport http --host 127.0.0.1 --port 3335
+REM 启动服务（pythonw 无窗口模式，本脚本窗口保留用于显示状态）
+start "MemU MCP Server" /b "C:\Users\ASUS\AppData\Local\Programs\Python\Python314\pythonw.exe" server.py --transport http --host 127.0.0.1 --port 3335 --project mcp-manager
 
 REM 等待服务启动
 timeout /t 3 /nobreak >nul
