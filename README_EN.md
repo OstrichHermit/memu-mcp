@@ -2,7 +2,9 @@
 
 An MCP (Model Context Protocol) interface for the MemU memory system, built for Claude Code CLI.
 
-[English](README_EN.md) | [简体中文](README.md)
+为 Claude Code CLI 提供 MemU 记忆系统的 MCP (Model Context Protocol) 接口。
+
+English | [简体中文](README.md)
 
 ## Features
 
