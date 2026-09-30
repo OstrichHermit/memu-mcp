@@ -1,3 +1,4 @@
 memu-py
 python-dotenv>=1.0.0
 openai>=1.0.0
+dashscope>=1.27.0
