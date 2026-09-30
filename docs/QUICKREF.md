@@ -96,25 +96,21 @@ await save_memory(
 
 ```bash
 # 健康检查
-python D:\AgentWorkspace\MemU\memu-mcp\memu_utils.py health
+python D:\AgentWorkspace\memu-mcp\memu_utils.py health
 
 # 运行测试
-python D:\AgentWorkspace\MemU\memu-mcp\memu_utils.py test
+python D:\AgentWorkspace\memu-mcp\memu_utils.py test
 
 # 查看统计
-python D:\AgentWorkspace\MemU\memu-mcp\memu_utils.py stats
-
-# MCP 测试
-cd D:\AgentWorkspace\MemU\memu-mcp
-python test_mcp.py
+python D:\AgentWorkspace\memu-mcp\memu_utils.py stats
 ```
 
 ## 配置文件位置
 
 - **MCP 配置**: `D:\AgentWorkspace\.mcp.json`
-- **环境变量**: `D:\AgentWorkspace\MemU\.env`
-- **MCP Server**: `D:\AgentWorkspace\MemU\memu-mcp\`
-- **工具函数**: `D:\AgentWorkspace\MemU\memu-mcp\memu_utils.py`
+- **环境变量**: `D:\AgentWorkspace\memu-mcp\.env`
+- **MCP Server**: `D:\AgentWorkspace\memu-mcp\`
+- **工具函数**: `D:\AgentWorkspace\memu-mcp\memu_utils.py`
 
 ## 重要提示
 
