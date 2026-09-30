@@ -17,6 +17,9 @@ from datetime import datetime
 import json
 import logging
 
+import dashscope
+from http import HTTPStatus
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -26,30 +29,112 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # 加载环境变量（从多个可能的位置）：
-# 1. 当前工作目录的 .env
-# 2. 项目父目录的 .env（MemU 工作目录布局：MemU/.env + MemU/memu-mcp/）
-# 3. MEMU_ENV_FILE 环境变量指定的位置
+# 1. 项目自身目录的 .env（独立布局：memu-mcp/.env 与代码同目录）
+# 2. MEMU_ENV_FILE 环境变量指定的位置
 load_dotenv()
-load_dotenv(str(Path(__file__).resolve().parent.parent / ".env"))
+load_dotenv(str(Path(__file__).resolve().parent / ".env"))
 if os.getenv("MEMU_ENV_FILE"):
     load_dotenv(os.getenv("MEMU_ENV_FILE"))
 
 # ==================== 配置 ====================
 
+# 可配置项（均可在项目 .env 中覆盖，见文件内注释）
+CHAT_MODEL = os.getenv("MEMU_CHAT_MODEL", "qwen-plus")
+CHAT_BASE_URL = os.getenv("MEMU_CHAT_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+EMBED_MODEL = os.getenv("MEMU_EMBED_MODEL", "qwen3.7-text-embedding")
+# embedding 后端：dashscope=原生 SDK（支持 text_type/instruct）| openai=兼容接口（基础稠密向量）
+EMBED_BACKEND = os.getenv("MEMU_EMBED_BACKEND", "dashscope").strip().lower()
+EMBED_BASE_URL = os.getenv("MEMU_EMBED_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+# dashscope 模式接口地址：MEMU_DASHSCOPE_BASE_URL > DASHSCOPE_BASE_URL > 官方主域名
+DASHSCOPE_API_URL = (
+    os.getenv("MEMU_DASHSCOPE_BASE_URL")
+    or os.getenv("DASHSCOPE_BASE_URL")
+    or "https://dashscope.aliyuncs.com/api/v1"
+)
+# 查询侧检索指令（仅 dashscope 模式 + text_type=query 时生效）
+SEARCH_INSTRUCT = os.getenv(
+    "MEMU_SEARCH_INSTRUCT",
+    "Given a personal memory search query, retrieve the most relevant memory records"
+)
+
 # LLM 配置
 LLM_PROFILES = {
     "default": {
-        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "base_url": CHAT_BASE_URL,
         "api_key": os.getenv("DASHSCOPE_API_KEY"),
-        "chat_model": "qwen-plus",
+        "chat_model": CHAT_MODEL,
         "client_backend": "sdk",
     },
     "embedding": {
-        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "base_url": EMBED_BASE_URL,
         "api_key": os.getenv("DASHSCOPE_API_KEY"),
-        "embed_model": "text-embedding-v4",
+        "embed_model": EMBED_MODEL,
     }
 }
+
+# ==================== DashScope 原生向量化 ====================
+
+dashscope.base_http_api_url = DASHSCOPE_API_URL
+
+# 同步接口单次最大行数（官方 SDK 示例值）
+_EMBED_BATCH_SIZE = 10
+
+
+def embed_texts(
+    texts: List[str],
+    text_type: str = "document",
+    instruct: Optional[str] = None
+) -> List[List[float]]:
+    """批量向量化，返回与输入顺序一致的向量列表
+
+    后端由 MEMU_EMBED_BACKEND 决定：
+    - dashscope：原生 SDK，支持 text_type（document/query）与 instruct
+    - openai：兼容接口，仅基础稠密向量（高级参数不传）
+    """
+    if EMBED_BACKEND == "openai":
+        return _embed_openai(texts)
+    return _embed_dashscope(texts, text_type, instruct)
+
+
+def _embed_openai(texts: List[str]) -> List[List[float]]:
+    from openai import OpenAI
+    client = OpenAI(
+        base_url=EMBED_BASE_URL,
+        api_key=LLM_PROFILES["embedding"]["api_key"]
+    )
+    result: List[List[float]] = []
+    for start in range(0, len(texts), _EMBED_BATCH_SIZE):
+        batch = texts[start:start + _EMBED_BATCH_SIZE]
+        resp = client.embeddings.create(model=EMBED_MODEL, input=batch)
+        data = sorted(resp.data, key=lambda d: d.index)
+        result.extend(d.embedding for d in data)
+    return result
+
+
+def _embed_dashscope(
+    texts: List[str],
+    text_type: str,
+    instruct: Optional[str]
+) -> List[List[float]]:
+    dashscope.api_key = LLM_PROFILES["embedding"]["api_key"]
+    result: List[Optional[List[float]]] = [None] * len(texts)
+    for start in range(0, len(texts), _EMBED_BATCH_SIZE):
+        batch = texts[start:start + _EMBED_BATCH_SIZE]
+        kwargs: Dict[str, Any] = {
+            "model": EMBED_MODEL,
+            "input": batch,
+            "text_type": text_type,
+        }
+        if text_type == "query" and instruct:
+            kwargs["instruct"] = instruct
+        resp = dashscope.TextEmbedding.call(**kwargs)
+        if resp.status_code != HTTPStatus.OK:
+            raise RuntimeError(
+                f"DashScope 向量化失败: status={resp.status_code} code={getattr(resp, 'code', '')} msg={getattr(resp, 'message', '')}"
+            )
+        for emb in resp.output["embeddings"]:
+            result[start + emb["text_index"]] = emb["embedding"]
+    return result
 
 # ==================== 服务初始化 ====================
 
@@ -86,7 +171,7 @@ def get_service():
             "provider": "local",
             "resources_dir": os.getenv(
                 "MEMU_RESOURCES_DIR",
-                str(Path(__file__).resolve().parent.parent / "data" / "resources")
+                str(Path(__file__).resolve().parent / "data" / "resources")
             )
         }
 
@@ -152,17 +237,8 @@ async def asave_memory(
         if not service:
             return {"status": "error", "error": "无法初始化 MemU 服务"}
 
-        # 直接用 embedding 模型对原始内容向量化
-        from openai import OpenAI
-        embed_client = OpenAI(
-            base_url=LLM_PROFILES["embedding"]["base_url"],
-            api_key=LLM_PROFILES["embedding"]["api_key"]
-        )
-        embed_response = embed_client.embeddings.create(
-            model=LLM_PROFILES["embedding"]["embed_model"],
-            input=[content]
-        )
-        embedding = embed_response.data[0].embedding
+        # 直接用 embedding 模型对原始内容向量化（入库侧用 document 角色）
+        embedding = embed_texts([content], text_type="document")[0]
 
         # 确定记忆类型
         valid_types = {"knowledge", "preference", "project", "people", "general"}
@@ -256,27 +332,21 @@ async def asearch_memory(
         if not service:
             return []
 
-        from openai import OpenAI
-        client = OpenAI(
-            base_url=LLM_PROFILES["embedding"]["base_url"],
-            api_key=LLM_PROFILES["embedding"]["api_key"]
-        )
-
-        response = client.embeddings.create(
-            model=LLM_PROFILES["embedding"]["embed_model"],
-            input=[query]
-        )
-
-        query_embedding = response.data[0].embedding
+        query_embedding = embed_texts(
+            [query],
+            text_type="query",
+            instruct=SEARCH_INSTRUCT
+        )[0]
 
         repo = service.database.memory_item_repo
         # 衰减重排发生在检索之后，向量分排名不等于衰减后排名，
         # 预筛池太小会误杀"低向量分但高衰减后分"的记忆，所以统一扩到 100
         search_limit = max(limit * 3, 100)
+        # v1.5.1 起过滤参数从 memory_type 改为通用 where dict
         search_results = repo.vector_search_items(
             query_vec=query_embedding,
             top_k=search_limit,
-            memory_type=category
+            where={"memory_type": category} if category else None
         )
 
         items = []
@@ -354,16 +424,7 @@ async def aupdate_memory(
         # 如果要更新内容，需要重新计算 embedding
         new_embedding = None
         if content is not None:
-            from openai import OpenAI
-            embed_client = OpenAI(
-                base_url=LLM_PROFILES["embedding"]["base_url"],
-                api_key=LLM_PROFILES["embedding"]["api_key"]
-            )
-            embed_response = embed_client.embeddings.create(
-                model=LLM_PROFILES["embedding"]["embed_model"],
-                input=[content]
-            )
-            new_embedding = embed_response.data[0].embedding
+            new_embedding = embed_texts([content], text_type="document")[0]
 
         update_kwargs = {}
         if new_embedding is not None:
