@@ -6,6 +6,8 @@ An MCP (Model Context Protocol) interface for the MemU memory system, built for 
 
 [English](README_EN.md) | [简体中文](README.md)
 
+[![M8ven Score](https://m8ven.ai/badge/mcp/ostrichhermit/memu-mcp)](https://m8ven.ai/mcp/ostrichhermit/memu-mcp)
+
 ## 功能特性
 
 - **保存记忆** - 将重要信息保存到记忆系统
