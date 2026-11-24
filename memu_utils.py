@@ -263,6 +263,17 @@ async def asave_memory(
             user_data={},
         )
 
+        extra_fields: Dict[str, Any] = {}
+        if importance is not None:
+            try:
+                extra_fields["importance"] = float(importance)
+            except (TypeError, ValueError):
+                logger.warning(f"importance 不是数字，已忽略: {importance!r}")
+        if isinstance(metadata, dict) and metadata:
+            extra_fields["metadata"] = metadata
+        if extra_fields:
+            service.database.memory_item_repo.update_item(item_id=str(memory_item.id), extra=extra_fields)
+
         logger.info(f"成功保存记忆（直接 embedding）: {content[:50]}...")
         return {
             "status": "success",
@@ -292,33 +303,41 @@ def _time_decay_weight(created_at, category: Optional[str] = None) -> float:
     """计算时间衰减权重（按 category 差异化）
 
     资产型（knowledge/preference/people）: 恒为 1.0，不衰减
-    状态型（project/general/未分类）: 1天内 1.0, 7天内 0.85, 30天内 0.7, 更早 0.5
+    状态型（project/general/未分类）: 1天内 1.0, 7天内 0.95, 30天内 0.9, 更早 0.8
+    下限取 0.8 而不是 0.5：衰减只用来让新日志排在旧日志前面，
+    不能把相关度高的旧进度记录压到边角的资产型记忆之后
     """
     if category in ASSET_CATEGORIES:
         return 1.0
-    from datetime import datetime, timezone
+    from datetime import datetime
     if not created_at:
-        return 0.5
+        return 0.8
     try:
         if isinstance(created_at, str):
-            # 处理各种时间字符串格式
-            created_at = created_at.replace("+08:00", "+00:00").replace("+00:00", "")
             created_at = datetime.fromisoformat(created_at)
-        if created_at.tzinfo:
-            now = datetime.now(created_at.tzinfo)
-        else:
-            now = datetime.now(timezone.utc)
+        # 带时区的时间戳按原时区算，不带时区的按本地时间算
+        now = datetime.now(created_at.tzinfo) if created_at.tzinfo else datetime.now()
         delta_hours = (now - created_at).total_seconds() / 3600
         if delta_hours <= 24:
             return 1.0
         elif delta_hours <= 168:  # 7天
-            return 0.85
+            return 0.95
         elif delta_hours <= 720:  # 30天
-            return 0.7
+            return 0.9
         else:
-            return 0.5
+            return 0.8
     except Exception:
-        return 0.5
+        return 0.8
+
+
+def _importance_weight(importance) -> float:
+    """importance 0~1 映射为 0.85~1.15 的排序权重；未设置的历史记忆权重 1.0（等同默认 0.5）"""
+    if importance is None:
+        return 1.0
+    try:
+        return 0.85 + 0.3 * float(importance)
+    except (TypeError, ValueError):
+        return 1.0
 
 
 async def asearch_memory(
@@ -358,7 +377,9 @@ async def asearch_memory(
                     item.created_at,
                     item.memory_type if hasattr(item, 'memory_type') else None
                 )
-                adjusted_score = score * decay
+                extra = getattr(item, "extra", None)
+                importance = extra.get("importance") if isinstance(extra, dict) else None
+                adjusted_score = score * decay * _importance_weight(importance)
                 item_dict = {
                     "id": str(item.id) if hasattr(item, 'id') else item_id,
                     "content": item.summary if hasattr(item, 'summary') else "",
@@ -381,25 +402,30 @@ async def asearch_memory(
 
 async def aget_context_memories(
     query: str,
-    max_tokens: int = 1000,
+    max_tokens: int = 3000,
     limit: int = 10
 ) -> List[Dict[str, Any]]:
-    """获取上下文记忆（异步版本）"""
+    """获取上下文记忆（异步版本）
+
+    按相关性顺序装入 max_tokens 预算（按字符数/3 估算）；
+    排名第一条无论多长都必入，避免最相关的那条长记忆被整条跳过。
+    """
     try:
         candidates = await asearch_memory(query, limit=limit * 2)
 
         selected = []
         current_tokens = 0
 
-        for memory in candidates:
+        for rank, memory in enumerate(candidates):
             if len(selected) >= limit:
                 break
             content = memory.get("content", "")
             content_tokens = len(content) // 3
 
-            if current_tokens + content_tokens <= max_tokens:
-                selected.append(memory)
-                current_tokens += content_tokens
+            if rank > 0 and current_tokens + content_tokens > max_tokens:
+                continue
+            selected.append(memory)
+            current_tokens += content_tokens
 
         return selected
 
@@ -551,7 +577,7 @@ def search_memory(
 
 def get_context_memories(
     query: str,
-    max_tokens: int = 1000,
+    max_tokens: int = 3000,
     limit: int = 10
 ) -> List[Dict[str, Any]]:
     """获取相关上下文记忆（同步版本）"""

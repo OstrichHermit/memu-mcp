@@ -81,8 +81,8 @@ Args:
         - 'project': 项目(项目信息、状态、进度)
         - 'people': 人物(关系信息、用户资料)
         - 'general': 其他(默认)
-    metadata: 额外元数据(可选),JSON 格式
-    importance: 重要性评分(可选),0-1 之间的浮点数
+    metadata: 额外元数据(可选),JSON 格式,入库到 extra.metadata
+    importance: 重要性评分(可选),0-1 之间的浮点数,默认 0.5;入库到 extra.importance,检索排序权重 0.85~1.15
 
 Returns:
     JSON格式的保存结果,包含成功状态和记忆ID
@@ -102,11 +102,11 @@ Note:
             },
             "metadata": {
                 "type": "object",
-                "description": "额外元数据(可选),JSON 对象,如 {\"tags\": [\"重要\"]}",
+                "description": "额外元数据(可选),JSON 对象,如 {\"tags\": [\"重要\"]},入库到 extra.metadata",
             },
             "importance": {
                 "type": "number",
-                "description": "重要性评分(可选),0-1 浮点数,越高越优先检索",
+                "description": "重要性评分(可选),0-1 浮点数,默认 0.5;入库到 extra.importance,检索排序权重 0.85~1.15,越大越靠前",
             },
         },
         "required": ["content"],
@@ -128,8 +128,8 @@ Args:
 Returns:
     JSON格式的搜索结果列表,每个结果包含:
     - content: 记忆内容
-    - score: 相关性评分(0-1,已乘时间衰减权重: 1天内1.0/7天内0.85/30天内0.7/更早0.5;
-      资产型分类 knowledge/preference/people 不衰减)
+    - score: 相关性评分(0-1,已乘时间权重: project/general 类 1天内1.0/7天内0.95/30天内0.9/更早0.8;
+      资产型分类 knowledge/preference/people 不衰减; 另乘 importance 权重 0.85~1.15)
     - category: 记忆分类
     - created_at: 创建时间
 
@@ -160,10 +160,10 @@ GET_CONTEXT_MEMORIES_TOOL = {
 
 Args:
     query: 当前任务或上下文描述(必需)
-    max_tokens: 最大 token 数量限制(可选),默认 1000
-        - 较小的值(500): 只获取最核心的记忆
-        - 中等值(1000): 平衡的记忆集合(推荐)
-        - 较大的值(2000-3000): 更全面的上下文
+    max_tokens: 最大 token 数量限制(可选),默认 3000,按字符数/3 估算
+        - 较小的值(1000): 只获取最核心的记忆
+        - 默认值(3000): 适配清理后较长的锚记忆,更全面的上下文
+        - 排名第一条的记忆无论多长都会入选
     limit: 最大返回记忆数量(可选),默认 10
 
 Returns:
@@ -179,8 +179,8 @@ Note:
             "query": {"type": "string", "description": "当前任务或上下文描述(必需)"},
             "max_tokens": {
                 "type": "integer",
-                "description": "最大 token 数量(可选),默认 1000",
-                "default": 1000,
+                "description": "最大 token 数量(可选),默认 3000",
+                "default": 3000,
             },
             "limit": {
                 "type": "integer",
@@ -319,7 +319,7 @@ async def run_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
     if name == "get_context_memories":
         results = await memu_utils.aget_context_memories(
             query=args.get("query", ""),
-            max_tokens=int(args.get("max_tokens", 1000) or 1000),
+            max_tokens=int(args.get("max_tokens", 3000) or 3000),
             limit=int(args.get("limit", 10) or 10),
         )
         return _text_content(_dump(results))
