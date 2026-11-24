@@ -9,7 +9,7 @@
 - **语义检索**：根据含义智能搜索，非关键词匹配
 - **持久化存储**：PostgreSQL 模式下永久保存
 - **快速检索**：<1 秒响应时间
-- **时间衰减**：搜索结果按"语义相似度 × 时间权重"排序，越新的记忆权重越高
+- **时间衰减**：搜索结果按"语义相似度 × 时间权重"排序；knowledge / preference / people 类不衰减，project / general 类 1 天内 1.0、7 天内 0.95、30 天内 0.9、更早 0.8（只让新日志排在旧日志前面）
 
 ### 必须优先查记忆原则
 - **每当用户发来文件或语音** - 必须先查看文件内容、处理完语音，再查记忆（不然你不知道该查什么）
@@ -38,10 +38,10 @@
 使用 MCP 工具：mcp__memu__get_context_memories
 参数：
 - query: 你想了解的任何内容，比如当前任务或上下文描述等等（必需）
-- max_tokens: 最大 token 数量（可选，可选值默认 1000）
+- max_tokens: 最大 token 数量（可选，建议传 3000；工具默认 3000。清理后的锚记忆较长，预算太小会漏掉最相关的那条）
 - limit: 最大返回记忆数量（可选，可选值默认 10）
 
-注意：score 已乘以时间衰减权重（1 天内 1.0、7 天内 0.85、30 天内 0.7、更早 0.5）
+注意：score 已乘以时间权重——knowledge / preference / people 类不衰减；project / general 类 1 天内 1.0、7 天内 0.95、30 天内 0.9、更早 0.8（下限 0.8，只用来让新日志排在旧日志前面）
 ```
 
 ### 查询技巧
@@ -57,7 +57,7 @@
 参数：
 - content: 记忆内容（必需）
 - category: 记忆分类（可选，可选值：knowledge, preference, project, people, general）
-- importance: 重要性（可选，可选值：0-1 之间的浮点数，默认 0.5）
+- importance: 重要性（可选，可选值：0-1 之间的浮点数，默认 0.5；入库到 extra.importance，检索排序权重 0.85~1.15，越大越靠前）
 ```
 
 **分类选择**：资产型内容（账号、配置、教训、偏好、人物关系）存 knowledge / preference / people，检索时不衰减；project / general 是状态型，会被时间衰减
@@ -70,7 +70,7 @@
 - limit: 返回数量（可选，可选值：1 ~ 20，默认 5）
 - category: 过滤记忆分类（可选，可选值：knowledge, preference, project, people, general）
 
-注意：score 已乘以时间衰减权重（1 天内 1.0、7 天内 0.85、30 天内 0.7、更早 0.5）
+注意：score 已乘以时间权重——knowledge / preference / people 类不衰减；project / general 类 1 天内 1.0、7 天内 0.95、30 天内 0.9、更早 0.8（下限 0.8，只用来让新日志排在旧日志前面）
 ```
 
 ### 更新记忆
